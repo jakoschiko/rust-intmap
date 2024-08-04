@@ -48,6 +48,7 @@ dependencies = [
  "indexmap",
  "rand",
  "serde",
+ "smallvec",
 ]
 
 [[package]]
@@ -97,6 +98,12 @@ name = "serde"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "369633cfe0f0bde1dfc037fb6c5a329d46586a31f981bed14d87487a3439ae37"
+
+[[package]]
+name = "smallvec"
+version = "1.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c5e1a9a646d36c3599cd173a41282daf47c44583ad367b8e6837255952e5c67"
 
 [[package]]
 name = "wasi"

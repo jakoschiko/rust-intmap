@@ -1,5 +1,7 @@
 // ***************** Entry *********************
 
+use smallvec::SmallVec;
+
 use crate::IntMap;
 
 /// A view into a single entry in a [`IntMap`], which may either be vacant or occupied.
@@ -45,7 +47,7 @@ pub struct OccupiedEntry<'a, V: 'a> {
     // Index to vals, guaranteed to be valid
     vals_ix: usize,
     // Element of IntMap::cache, guaranteed to be non-empty
-    vals: &'a mut Vec<(u64, V)>,
+    vals: &'a mut SmallVec<[(u64, V); 2]>,
     // IntMap::count, guaranteed to be non-zero
     count: &'a mut usize,
 }

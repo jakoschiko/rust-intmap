@@ -10,10 +10,11 @@ use core::iter::{IntoIterator, Iterator};
 use iter::*;
 
 pub use entry::*;
+use smallvec::SmallVec;
 
 #[derive(Clone)]
 pub struct IntMap<V> {
-    cache: Vec<Vec<(u64, V)>>,
+    cache: Vec<SmallVec<[(u64, V); 2]>>,
     size: u32,
     mod_mask: u64,
     count: usize,
@@ -389,7 +390,7 @@ impl<V> IntMap<V> {
         let new_lim = self.lim();
         self.mod_mask = (new_lim as u64) - 1;
 
-        let mut vec: Vec<Vec<(u64, V)>> = (0..new_lim).map(|_| Vec::new()).collect();
+        let mut vec: Vec<SmallVec<[(u64, V); 2]>> = (0..new_lim).map(|_| SmallVec::new()).collect();
         std::mem::swap(&mut self.cache, &mut vec);
 
         for k in vec.into_iter().flatten() {
