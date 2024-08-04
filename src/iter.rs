@@ -2,19 +2,21 @@ use std::iter::FlatMap as IterFlatMap;
 use std::iter::Flatten as IterFlatten;
 use std::slice::Iter as SliceIter;
 use std::slice::IterMut as SliceIterMut;
-use std::vec::Drain as VecDrain;
 use std::vec::IntoIter as VecIntoIter;
+
+use smallvec::Drain as SmallVecDrain;
+use smallvec::SmallVec;
 
 use crate::IntMap;
 
 // ***************** Iter *********************
 
 pub struct Iter<'a, K: 'a, V: 'a> {
-    inner: IterFlatten<SliceIter<'a, Vec<(K, V)>>>,
+    inner: IterFlatten<SliceIter<'a, SmallVec<[(K, V); 1]>>>,
 }
 
 impl<'a, K, V> Iter<'a, K, V> {
-    pub(crate) fn new(vec: &'a [Vec<(K, V)>]) -> Self {
+    pub(crate) fn new(vec: &'a [SmallVec<[(K, V); 1]>]) -> Self {
         Iter {
             inner: vec.iter().flatten(),
         }
@@ -33,11 +35,11 @@ impl<'a, K, V> Iterator for Iter<'a, K, V> {
 // ***************** Iter Mut *********************
 
 pub struct IterMut<'a, K: 'a, V: 'a> {
-    inner: IterFlatten<SliceIterMut<'a, Vec<(K, V)>>>,
+    inner: IterFlatten<SliceIterMut<'a, SmallVec<[(K, V); 1]>>>,
 }
 
 impl<'a, K, V> IterMut<'a, K, V> {
-    pub(crate) fn new(vec: &'a mut [Vec<(K, V)>]) -> IterMut<'a, K, V> {
+    pub(crate) fn new(vec: &'a mut [SmallVec<[(K, V); 1]>]) -> IterMut<'a, K, V> {
         IterMut {
             inner: vec.iter_mut().flatten(),
         }
@@ -123,11 +125,11 @@ impl<V> IntoIterator for IntMap<V> {
 }
 
 pub struct IntoIter<K, V> {
-    inner: IterFlatten<VecIntoIter<Vec<(K, V)>>>,
+    inner: IterFlatten<VecIntoIter<SmallVec<[(K, V); 1]>>>,
 }
 
 impl<K, V> IntoIter<K, V> {
-    pub(crate) fn new(vec: Vec<Vec<(K, V)>>) -> Self {
+    pub(crate) fn new(vec: Vec<SmallVec<[(K, V); 1]>>) -> Self {
         IntoIter {
             inner: vec.into_iter().flatten(),
         }
@@ -149,14 +151,17 @@ impl<K, V> Iterator for IntoIter<K, V> {
 pub struct Drain<'a, K: 'a, V: 'a> {
     count: &'a mut usize,
     inner: IterFlatMap<
-        SliceIterMut<'a, Vec<(K, V)>>,
-        VecDrain<'a, (K, V)>,
-        fn(&mut Vec<(K, V)>) -> VecDrain<(K, V)>,
+        SliceIterMut<'a, SmallVec<[(K, V); 1]>>,
+        SmallVecDrain<'a, [(K, V); 1]>,
+        fn(&mut SmallVec<[(K, V); 1]>) -> SmallVecDrain<[(K, V); 1]>,
     >,
 }
 
 impl<'a, K, V> Drain<'a, K, V> {
-    pub(crate) fn new(vec: &'a mut [Vec<(K, V)>], count: &'a mut usize) -> Drain<'a, K, V> {
+    pub(crate) fn new(
+        vec: &'a mut [SmallVec<[(K, V); 1]>],
+        count: &'a mut usize,
+    ) -> Drain<'a, K, V> {
         Drain {
             count,
             inner: vec.iter_mut().flat_map(|v| v.drain(..)),
