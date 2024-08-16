@@ -1,8 +1,34 @@
-use std::collections::HashMap;
+use std::ops::RangeInclusive;
+use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
-use intmap::IntMap;
+use intmap::{Int, IntKey, IntMap};
 use proptest::collection::vec;
 use proptest::prelude::*;
+
+pub trait TestInt: Int + IntKey<Int = Self> + Eq + Hash + 'static {
+    type Range: Strategy<Value = Self>;
+
+    fn small_range() -> Self::Range;
+    fn total_range() -> Self::Range;
+}
+
+macro_rules! impl_test_int {
+    ($int:ident) => {
+        impl TestInt for $int {
+            type Range = RangeInclusive<Self>;
+
+            fn small_range() -> Self::Range {
+                0..=10
+            }
+            fn total_range() -> Self::Range {
+                0..=(Self::MAX)
+            }
+        }
+    };
+}
+
+impl_test_int!(u32);
+impl_test_int!(u64);
 
 #[derive(Clone, Debug)]
 pub struct Capacity(usize);
@@ -25,15 +51,15 @@ impl LoadFactor {
 }
 
 #[derive(Clone, Debug)]
-pub struct Key(u64);
+pub struct Key<K>(K);
 
-impl Key {
+impl<K: TestInt> Key<K> {
     fn arb() -> impl Strategy<Value = Self> {
         prop_oneof![
-            // Small keys with high probability for collision
-            10 => 0u64..=10u64,
+            // Keys with high probability for collision
+            10 => K::small_range(),
             // Totally arbitrary keys
-            1 => any::<u64>(),
+            1 => K::total_range(),
         ]
         .prop_map(Self)
     }
@@ -49,9 +75,9 @@ impl Value {
 }
 
 #[derive(Clone, Debug)]
-pub struct Pairs(Vec<(u64, u8)>);
+pub struct Pairs<K>(Vec<(K, u8)>);
 
-impl Pairs {
+impl<K: TestInt> Pairs<K> {
     fn arb() -> impl Strategy<Value = Self> {
         vec(
             (Key::arb().prop_map(|k| k.0), Value::arb().prop_map(|v| v.0)),
@@ -62,14 +88,14 @@ impl Pairs {
 }
 
 #[derive(Clone, Debug)]
-pub enum Ctor {
+pub enum Ctor<K> {
     New,
     WithCapacity(Capacity),
     Default,
-    FromIter(Pairs),
+    FromIter(Pairs<K>),
 }
 
-impl Ctor {
+impl<K: TestInt> Ctor<K> {
     pub fn arb() -> impl Strategy<Value = Self> {
         prop_oneof![
             Just(Self::New),
@@ -79,7 +105,7 @@ impl Ctor {
         ]
     }
 
-    pub fn apply(&self) -> (IntMap<u8>, HashMap<u64, u8>) {
+    pub fn apply(&self) -> (IntMap<K, u8>, HashMap<K, u8>) {
         match self {
             Self::New => (IntMap::new(), HashMap::new()),
             Self::WithCapacity(capacity) => (IntMap::with_capacity(capacity.0), HashMap::new()),
@@ -93,16 +119,16 @@ impl Ctor {
 }
 
 #[derive(Clone, Debug)]
-pub enum Op {
+pub enum Op<K> {
     SetLoadFactor(LoadFactor),
     GetLoadFactor,
     Reserve(Capacity),
-    Insert((Key, Value)),
-    InsertChecked((Key, Value)),
-    Get(Key),
-    GetMut(Key),
-    Remove(Key),
-    ContainsKey(Key),
+    Insert((Key<K>, Value)),
+    InsertChecked((Key<K>, Value)),
+    Get(Key<K>),
+    GetMut(Key<K>),
+    Remove(Key<K>),
+    ContainsKey(Key<K>),
     Clear,
     Retain(Value),
     IsEmpty,
@@ -117,13 +143,13 @@ pub enum Op {
     LoadRate,
     Capacity,
     Collisions,
-    Entry(Key),
+    Entry(Key<K>),
     Clone,
     Debug,
-    Extend(Pairs),
+    Extend(Pairs<K>),
 }
 
-impl Op {
+impl<K: TestInt> Op<K> {
     pub fn arb_vec(max_size: usize) -> impl Strategy<Value = Vec<Self>> {
         vec(Op::arb(), 0..=max_size)
     }
@@ -160,7 +186,7 @@ impl Op {
         ]
     }
 
-    pub fn apply(&self, map: &mut IntMap<u8>, reference: &mut HashMap<u64, u8>) {
+    pub fn apply(&self, map: &mut IntMap<K, u8>, reference: &mut HashMap<K, u8>) {
         match self {
             Self::SetLoadFactor(load_factor) => {
                 map.set_load_factor(load_factor.0);
@@ -241,7 +267,7 @@ impl Op {
                 *map = map.clone();
             }
             Self::Debug => {
-                format!("{map:?}");
+                let _string = format!("{map:?}");
             }
             Self::Extend(pairs) => {
                 map.extend(pairs.0.clone());

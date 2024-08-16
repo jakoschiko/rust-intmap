@@ -1,3 +1,5 @@
+#![allow(clippy::type_complexity)]
+
 use std::iter::FlatMap as IterFlatMap;
 use std::iter::Flatten as IterFlatten;
 use std::slice::Iter as SliceIter;
@@ -5,65 +7,70 @@ use std::slice::IterMut as SliceIterMut;
 use std::vec::Drain as VecDrain;
 use std::vec::IntoIter as VecIntoIter;
 
+use crate::IntKey;
 use crate::IntMap;
 
 // ***************** Iter *********************
 
-pub struct Iter<'a, K: 'a, V: 'a> {
-    inner: IterFlatten<SliceIter<'a, Vec<(K, V)>>>,
+pub struct Iter<'a, K: IntKey, V: 'a> {
+    inner: IterFlatten<SliceIter<'a, Vec<(K::Int, V)>>>,
 }
 
-impl<'a, K, V> Iter<'a, K, V> {
-    pub(crate) fn new(vec: &'a [Vec<(K, V)>]) -> Self {
+impl<'a, K: IntKey, V> Iter<'a, K, V> {
+    pub(crate) fn new(vec: &'a [Vec<(K::Int, V)>]) -> Self {
         Iter {
             inner: vec.iter().flatten(),
         }
     }
 }
 
-impl<'a, K, V> Iterator for Iter<'a, K, V> {
-    type Item = (&'a K, &'a V);
+impl<'a, K: IntKey, V> Iterator for Iter<'a, K, V> {
+    type Item = (K, &'a V);
 
     #[inline]
-    fn next(&mut self) -> Option<(&'a K, &'a V)> {
-        self.inner.next().map(|r| (&r.0, &r.1))
+    fn next(&mut self) -> Option<Self::Item> {
+        let (int, value) = self.inner.next()?;
+        let key = K::from_int(*int);
+        Some((key, value))
     }
 }
 
 // ***************** Iter Mut *********************
 
-pub struct IterMut<'a, K: 'a, V: 'a> {
-    inner: IterFlatten<SliceIterMut<'a, Vec<(K, V)>>>,
+pub struct IterMut<'a, K: IntKey, V: 'a> {
+    inner: IterFlatten<SliceIterMut<'a, Vec<(K::Int, V)>>>,
 }
 
-impl<'a, K, V> IterMut<'a, K, V> {
-    pub(crate) fn new(vec: &'a mut [Vec<(K, V)>]) -> IterMut<'a, K, V> {
+impl<'a, K: IntKey, V> IterMut<'a, K, V> {
+    pub(crate) fn new(vec: &'a mut [Vec<(K::Int, V)>]) -> IterMut<'a, K, V> {
         IterMut {
             inner: vec.iter_mut().flatten(),
         }
     }
 }
 
-impl<'a, K, V> Iterator for IterMut<'a, K, V> {
-    type Item = (&'a K, &'a mut V);
+impl<'a, K: IntKey, V> Iterator for IterMut<'a, K, V> {
+    type Item = (K, &'a mut V);
 
     #[inline]
-    fn next(&mut self) -> Option<(&'a K, &'a mut V)> {
-        self.inner.next().map(|r| (&r.0, &mut r.1))
+    fn next(&mut self) -> Option<Self::Item> {
+        let (int, value) = self.inner.next()?;
+        let key = K::from_int(*int);
+        Some((key, value))
     }
 }
 
 // ***************** Keys Iter *********************
 
-pub struct Keys<'a, K: 'a, V: 'a> {
+pub struct Keys<'a, K: IntKey, V: 'a> {
     pub(crate) inner: Iter<'a, K, V>,
 }
 
-impl<'a, K, V> Iterator for Keys<'a, K, V> {
-    type Item = &'a K;
+impl<'a, K: IntKey, V> Iterator for Keys<'a, K, V> {
+    type Item = K;
 
     #[inline]
-    fn next(&mut self) -> Option<&'a K> {
+    fn next(&mut self) -> Option<Self::Item> {
         self.inner.next().map(|kv| kv.0)
     }
     #[inline]
@@ -74,15 +81,15 @@ impl<'a, K, V> Iterator for Keys<'a, K, V> {
 
 // ***************** Values Iter *********************
 
-pub struct Values<'a, K: 'a, V: 'a> {
+pub struct Values<'a, K: IntKey, V: 'a> {
     pub(crate) inner: Iter<'a, K, V>,
 }
 
-impl<'a, K, V> Iterator for Values<'a, K, V> {
+impl<'a, K: IntKey, V> Iterator for Values<'a, K, V> {
     type Item = &'a V;
 
     #[inline]
-    fn next(&mut self) -> Option<&'a V> {
+    fn next(&mut self) -> Option<Self::Item> {
         self.inner.next().map(|kv| kv.1)
     }
     #[inline]
@@ -93,15 +100,15 @@ impl<'a, K, V> Iterator for Values<'a, K, V> {
 
 // ***************** Values Mut *********************
 
-pub struct ValuesMut<'a, K: 'a, V: 'a> {
+pub struct ValuesMut<'a, K: IntKey, V: 'a> {
     pub(crate) inner: IterMut<'a, K, V>,
 }
 
-impl<'a, K, V> Iterator for ValuesMut<'a, K, V> {
+impl<'a, K: IntKey, V> Iterator for ValuesMut<'a, K, V> {
     type Item = &'a mut V;
 
     #[inline]
-    fn next(&mut self) -> Option<&'a mut V> {
+    fn next(&mut self) -> Option<Self::Item> {
         self.inner.next().map(|kv| kv.1)
     }
 
@@ -113,50 +120,52 @@ impl<'a, K, V> Iterator for ValuesMut<'a, K, V> {
 
 // ***************** Into Iter *********************
 
-impl<V> IntoIterator for IntMap<V> {
-    type Item = (u64, V);
-    type IntoIter = IntoIter<u64, V>;
+impl<K: IntKey, V> IntoIterator for IntMap<K, V> {
+    type Item = (K, V);
+    type IntoIter = IntoIter<K, V>;
 
     fn into_iter(self) -> Self::IntoIter {
         IntoIter::new(self.cache)
     }
 }
 
-pub struct IntoIter<K, V> {
-    inner: IterFlatten<VecIntoIter<Vec<(K, V)>>>,
+pub struct IntoIter<K: IntKey, V> {
+    inner: IterFlatten<VecIntoIter<Vec<(K::Int, V)>>>,
 }
 
-impl<K, V> IntoIter<K, V> {
-    pub(crate) fn new(vec: Vec<Vec<(K, V)>>) -> Self {
+impl<K: IntKey, V> IntoIter<K, V> {
+    pub(crate) fn new(vec: Vec<Vec<(K::Int, V)>>) -> Self {
         IntoIter {
             inner: vec.into_iter().flatten(),
         }
     }
 }
 
-impl<K, V> Iterator for IntoIter<K, V> {
+impl<K: IntKey, V> Iterator for IntoIter<K, V> {
     type Item = (K, V);
 
     #[inline]
-    fn next(&mut self) -> Option<(K, V)> {
-        self.inner.next()
+    fn next(&mut self) -> Option<Self::Item> {
+        let (int, value) = self.inner.next()?;
+        let key = K::from_int(int);
+        Some((key, value))
     }
 }
 
 // ***************** Drain Iter *********************
 
 #[allow(clippy::type_complexity)]
-pub struct Drain<'a, K: 'a, V: 'a> {
+pub struct Drain<'a, K: IntKey, V: 'a> {
     count: &'a mut usize,
     inner: IterFlatMap<
-        SliceIterMut<'a, Vec<(K, V)>>,
-        VecDrain<'a, (K, V)>,
-        fn(&mut Vec<(K, V)>) -> VecDrain<(K, V)>,
+        SliceIterMut<'a, Vec<(K::Int, V)>>,
+        VecDrain<'a, (K::Int, V)>,
+        fn(&mut Vec<(K::Int, V)>) -> VecDrain<(K::Int, V)>,
     >,
 }
 
-impl<'a, K, V> Drain<'a, K, V> {
-    pub(crate) fn new(vec: &'a mut [Vec<(K, V)>], count: &'a mut usize) -> Drain<'a, K, V> {
+impl<'a, K: IntKey, V> Drain<'a, K, V> {
+    pub(crate) fn new(vec: &'a mut [Vec<(K::Int, V)>], count: &'a mut usize) -> Drain<'a, K, V> {
         Drain {
             count,
             inner: vec.iter_mut().flat_map(|v| v.drain(..)),
@@ -164,24 +173,23 @@ impl<'a, K, V> Drain<'a, K, V> {
     }
 }
 
-impl<'a, K, V> Iterator for Drain<'a, K, V> {
+impl<'a, K: IntKey, V> Iterator for Drain<'a, K, V> {
     type Item = (K, V);
 
     #[inline]
-    fn next(&mut self) -> Option<(K, V)> {
-        let next = self.inner.next();
-        if next.is_some() {
-            *self.count -= 1;
-        }
-        next
+    fn next(&mut self) -> Option<Self::Item> {
+        let (int, value) = self.inner.next()?;
+        *self.count -= 1;
+        let key = K::from_int(int);
+        Some((key, value))
     }
 }
 
 // ***************** Extend *********************
 
-impl<V> Extend<(u64, V)> for IntMap<V> {
+impl<K: IntKey, V> Extend<(K, V)> for IntMap<K, V> {
     #[inline]
-    fn extend<T: IntoIterator<Item = (u64, V)>>(&mut self, iter: T) {
+    fn extend<T: IntoIterator<Item = (K, V)>>(&mut self, iter: T) {
         for elem in iter {
             self.insert(elem.0, elem.1);
         }
@@ -190,9 +198,9 @@ impl<V> Extend<(u64, V)> for IntMap<V> {
 
 // ***************** FromIterator *********************
 
-impl<V> std::iter::FromIterator<(u64, V)> for IntMap<V> {
+impl<K: IntKey, V> std::iter::FromIterator<(K, V)> for IntMap<K, V> {
     #[inline]
-    fn from_iter<T: IntoIterator<Item = (u64, V)>>(iter: T) -> Self {
+    fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
         let iterator = iter.into_iter();
         let (lower_bound, _) = iterator.size_hint();
 
